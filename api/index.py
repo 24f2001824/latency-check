@@ -12,7 +12,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-with open("telemetry.json") as f:
+with open("q-vercel-latency .json") as f:
     data = json.load(f)
 
 @app.post("/api")
