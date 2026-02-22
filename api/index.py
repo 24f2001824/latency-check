@@ -1,9 +1,7 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import numpy as np
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -14,28 +12,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-with open("q-vercel-latency .json") as f:
-    telemetry = json.load(f)
+with open("telemetry.json") as f:
+    data = json.load(f)
 
-class Req(BaseModel):
-    regions: List[str]
-    threshold_ms: int
+@app.post("/api")
+async def latency_metrics(request: Request):
+    body = await request.json()
+    regions = body["regions"]
+    threshold = body["threshold_ms"]
 
-@app.post("/")
-def check_latency(req: Req):
-    res = {}
+    result = {}
 
-    for region in req.regions:
-        data = [x for x in telemetry if x["region"] == region]
+    for r in regions:
+        records = [d for d in data if d["region"] == r]
 
-        lat = [d["latency_ms"] for d in data]
-        up = [d["uptime"] for d in data]
+        latencies = [d["latency_ms"] for d in records]
+        uptimes = [d["uptime"] for d in records]
 
-        res[region] = {
-            "avg_latency": float(np.mean(lat)),
-            "p95_latency": float(np.percentile(lat,95)),
-            "avg_uptime": float(np.mean(up)),
-            "breaches": len([l for l in lat if l > req.threshold_ms])
+        avg_latency = float(np.mean(latencies))
+        p95_latency = float(np.percentile(latencies,95))
+        avg_uptime = float(np.mean(uptimes))
+        breaches = len([l for l in latencies if l > threshold])
+
+        result[r] = {
+            "avg_latency": avg_latency,
+            "p95_latency": p95_latency,
+            "avg_uptime": avg_uptime,
+            "breaches": breaches
         }
 
-    return res
+    return result
